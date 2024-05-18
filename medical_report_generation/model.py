@@ -1,6 +1,7 @@
 from typing import cast
 
 import torch
+from PIL import Image
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import (
@@ -18,6 +19,8 @@ from transformers import (
     ImageToTextPipeline,
     LogitsProcessor,
     LogitsProcessorList,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
     TextGenerationPipeline,
     VisionEncoderDecoderModel,
     ViTImageProcessor,
@@ -70,28 +73,46 @@ VISION_ENCODER_DECODER_PATH = "nlpconnect/vit-gpt2-image-captioning"
 
 
 class MedicalReportGeneration(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, device: str) -> None:
         super().__init__()
         # load a fine-tuned image captioning model and corresponding tokenizer and image processor
-        encoder_decoder = VisionEncoderDecoderModel.from_pretrained(VISION_ENCODER_DECODER_PATH)
+        encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
+            VISION_ENCODER_DECODER_PATH, local_files_only=True
+        )
         encoder_decoder = cast(VisionEncoderDecoderModel, encoder_decoder)
         self.encoder_decoder = encoder_decoder
-        tokenizer = BertTokenizer.from_pretrained("google-bert/bert-base-uncased")
+        tokenizer = BertTokenizer.from_pretrained(
+            "google-bert/bert-base-uncased", local_files_only=True
+        )
         tokenizer = cast(BertTokenizer, tokenizer)
         self.tokenizer = tokenizer
-        encoder_decoder.config.decoder_start_token_id = tokenizer.cls_token_id
-        encoder_decoder.config.pad_token_id = tokenizer.pad_token_id
-        image_processor = ViTImageProcessor.from_pretrained(VISION_ENCODER_DECODER_PATH)
+        image_processor = ViTImageProcessor.from_pretrained(
+            VISION_ENCODER_DECODER_PATH, local_files_only=True
+        )
         image_processor = cast(ViTImageProcessor, image_processor)
         self.image_processor = image_processor
+        self.device = device
 
     def forward(self, images: torch.Tensor, label_str: str):
-        pixel_values = self.image_processor(images, return_tensors="pt").pixel_values
+        self.encoder_decoder.config.decoder_start_token_id = self.tokenizer.cls_token_id
+        self.encoder_decoder.config.pad_token_id = self.tokenizer.pad_token_id
+        pixel_values = self.image_processor(
+            images, return_tensors="pt", do_rescale=False
+        ).pixel_values.to(device=self.device)
         # autoregressively generate caption (uses greedy decoding by default)
         # (1,16) tokens
         # generated_ids = self.encoder_decoder.generate(pixel_values)
-        labels = self.tokenizer(label_str, return_tensors="pt").input_ids
+        labels = self.tokenizer(label_str, return_tensors="pt").input_ids.to(device=self.device)
         output = self.encoder_decoder(pixel_values=pixel_values, labels=labels)
         # generated_text = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         # print(generated_text)
-        return output
+        return output.loss
+
+    def generate(self, image: Image.Image) -> str:
+        tokenizer = GPT2TokenizerFast.from_pretrained(
+            "nlpconnect/vit-gpt2-image-captioning", local_files_only=True
+        )
+        pixel_values = self.image_processor(image, return_tensors="pt").pixel_values
+        generated_ids = self.encoder_decoder.generate(pixel_values, max_new_tokens=100)
+        generated_text = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        return generated_text

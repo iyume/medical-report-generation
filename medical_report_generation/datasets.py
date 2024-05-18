@@ -19,18 +19,20 @@ class IUXrayDataset(Dataset):
     ) -> None:
         self.iu_xray_path = iu_xray_path
         all_annotations = json.load(open(Path(iu_xray_path) / "annotation.json"))
+        # train 2069, val 296, test 590
         if type == "train":
             self.annotations = all_annotations["train"] + all_annotations["val"]
         else:
             self.annotations = all_annotations["test"]
+        self.pairs: list[tuple[str, str]] = []
+        for ann in self.annotations:
+            for image in ann["image_path"]:
+                self.pairs.append((image, ann["report"]))
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, str]:
-        annotation = self.annotations[index]
-        pil_images = [
-            Image.open(os.path.join(self.iu_xray_path, "images", i)).convert("RGB")
-            for i in annotation["image_path"]
-        ]
-        return _transform(pil_images[0]), annotation["report"]
+        image_path, report = self.pairs[index]
+        image = Image.open(os.path.join(self.iu_xray_path, "images", image_path)).convert("RGB")
+        return _transform(image), report
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.pairs)

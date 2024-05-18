@@ -20,20 +20,18 @@ class Trainer:
     def __init__(
         self,
         device: str = "cpu",
-        learning_rate: float = 1e-3,
-        batch_size: int = 4,
+        learning_rate: float = 5e-5,
         pth_file: str | None = None,
         dataset: IUXrayDataset | None = None,
     ) -> None:
-        self.model = MedicalReportGeneration().train()
+        self.model = MedicalReportGeneration(device=device).train()
         self.device = torch.device(device)
+        self.model.to(self.device)
         if dataset is None:
             dataset = IUXrayDataset()
         print(f"Loaded {len(dataset)} samples")
         self.dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-        self.model.to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), learning_rate)
-        self.loss_fn = nn.L1Loss()
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), learning_rate)
         if pth_file is None:
             state = State(
                 epoch=0,
@@ -57,9 +55,7 @@ class Trainer:
             images = images.to(self.device)
             # labels = labels.to(self.device)
             self.optimizer.zero_grad()
-            out = self.model(images, labels)
-            # loss = self.loss_fn(out, labels)
-            loss = out.loss
+            loss = self.model(images, labels)
             loss.backward()
             loss_history.append(loss.item())
             self.optimizer.step()
@@ -71,7 +67,7 @@ class Trainer:
         print(f"epoch {self.state['epoch']} training complete")
         print(f"STAT LOSS: {self.state['loss']:.4f}")
         if create_checkpoint:
-            checkpoint = ckpt_dir / f"model_{self.model.version}_epoch{self.state['epoch']}.pth"
+            checkpoint = ckpt_dir / f"model_{getattr(self.model, "version", "v1")}_epoch{self.state['epoch']}.pth"
             torch.save(self.state, checkpoint)
             print(f"model saved at {checkpoint}")
 
