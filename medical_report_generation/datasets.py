@@ -25,9 +25,15 @@ class IUXrayDataset(Dataset):
         else:
             self.annotations = all_annotations["test"]
         self.pairs: list[tuple[str, str]] = []
+        skiped = 0
         for ann in self.annotations:
+            if "XXXX" in ann["report"]:
+                skiped += 1
+                continue
             for image in ann["image_path"]:
                 self.pairs.append((image, ann["report"]))
+        if skiped:
+            print(f"Skip {skiped} invalid samples")
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, str]:
         image_path, report = self.pairs[index]

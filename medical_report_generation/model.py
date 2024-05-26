@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import torch
 from PIL import Image
@@ -72,9 +72,10 @@ VISION_ENCODER_DECODER_PATH = "nlpconnect/vit-gpt2-image-captioning"
 #         ...
 
 
-class MedicalReportGeneration(nn.Module):
+class MedicalReportGenerationBert(nn.Module):
     def __init__(self, device: str) -> None:
         super().__init__()
+        # This is re-training based on another vocab
         # load a fine-tuned image captioning model and corresponding tokenizer and image processor
         encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
             VISION_ENCODER_DECODER_PATH, local_files_only=True
@@ -116,3 +117,49 @@ class MedicalReportGeneration(nn.Module):
         generated_ids = self.encoder_decoder.generate(pixel_values, max_new_tokens=100)
         generated_text = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         return generated_text
+
+
+class MedicalReportGeneration(nn.Module):
+    def __init__(self, device: str) -> None:
+        super().__init__()
+        # load a fine-tuned image captioning model and corresponding tokenizer and image processor
+        encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
+            VISION_ENCODER_DECODER_PATH, local_files_only=True
+        )
+        encoder_decoder = cast(VisionEncoderDecoderModel, encoder_decoder)
+        self.encoder_decoder = encoder_decoder
+        tokenizer = GPT2TokenizerFast.from_pretrained(
+            VISION_ENCODER_DECODER_PATH, local_files_only=True
+        )
+        tokenizer = cast(GPT2TokenizerFast, tokenizer)
+        self.tokenizer = tokenizer
+        image_processor = ViTImageProcessor.from_pretrained(
+            VISION_ENCODER_DECODER_PATH, local_files_only=True
+        )
+        image_processor = cast(ViTImageProcessor, image_processor)
+        self.image_processor = image_processor
+        self.device = device
+        # GPT2 only has bos/eos tokens but not decoder_start/pad tokens
+        tokenizer.pad_token = tokenizer.eos_token
+        # update the model config
+        encoder_decoder.config.eos_token_id = tokenizer.eos_token_id
+        encoder_decoder.config.decoder_start_token_id = tokenizer.bos_token_id
+        encoder_decoder.config.pad_token_id = tokenizer.pad_token_id
+
+    def forward(self, images: torch.Tensor, caption: str):
+        pixel_values = self.image_processor(
+            images, return_tensors="pt", do_rescale=False
+        ).pixel_values.to(device=self.device)
+        # https://huggingface.co/docs/transformers/pad_truncation
+        labels = self.tokenizer(caption, padding="max_length", return_tensors="pt").input_ids.to(
+            device=self.device
+        )
+        output = self.encoder_decoder(pixel_values=pixel_values, labels=labels)
+        return output.loss
+
+    def generate(self, image: Image.Image) -> str:
+        gen_kwargs: Any = {"max_length": 100, "num_beams": 4}
+        pixel_values = self.image_processor(image, return_tensors="pt").pixel_values
+        generated_ids = self.encoder_decoder.generate(pixel_values, **gen_kwargs)
+        generated_text = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        return generated_text.strip()
