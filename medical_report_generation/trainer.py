@@ -20,14 +20,18 @@ class Trainer:
     def __init__(
         self,
         device: str = "cpu",
-        learning_rate: float = 5e-5,
+        finetune: bool = True,
         pth_file: str | None = None,
         dataset: IUXrayDataset | None = None,
     ) -> None:
-        self.model = MedicalReportGeneration(device=device).train()
+        if finetune:
+            learning_rate = 5e-5
+        else:
+            learning_rate = 1e-3
+        self.model = MedicalReportGeneration(finetune=finetune, device=device).train()
         self.device = torch.device(device)
         self.model.to(self.device)
-        if dataset is None:
+        if dataset is None: 
             dataset = IUXrayDataset()
         print(f"Loaded {len(dataset)} samples")
         self.dataloader = DataLoader(dataset, batch_size=1, shuffle=True)

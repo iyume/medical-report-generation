@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, cast
 
 import torch
@@ -22,6 +23,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     TextGenerationPipeline,
+    VisionEncoderDecoderConfig,
     VisionEncoderDecoderModel,
     ViTImageProcessor,
 )
@@ -29,6 +31,15 @@ from transformers import (
 VIT_PATH = "openai/clip-vit-large-patch14"
 GPT2_PATH = "openai-community/gpt2"
 VISION_ENCODER_DECODER_PATH = "nlpconnect/vit-gpt2-image-captioning"
+
+"""
+About config file:
+1. The encoder's hidden size should equal to decoder's n_embd, or the tensor will be projected.
+2. The n_embd must be dividable by n_head.
+"""
+ENCODER_DECODER_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+if not ENCODER_DECODER_CONFIG_PATH.exists():
+    raise RuntimeError
 
 
 # class MedicalReportGeneration(nn.Module):
@@ -120,12 +131,16 @@ class MedicalReportGenerationBert(nn.Module):
 
 
 class MedicalReportGeneration(nn.Module):
-    def __init__(self, device: str) -> None:
+    def __init__(self, *, finetune: bool = True, device: str = "cpu") -> None:
         super().__init__()
-        # load a fine-tuned image captioning model and corresponding tokenizer and image processor
-        encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
-            VISION_ENCODER_DECODER_PATH, local_files_only=True
-        )
+        if finetune:
+            # load a fine-tuned image captioning model and corresponding tokenizer and image processor
+            encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
+                VISION_ENCODER_DECODER_PATH, local_files_only=True
+            )
+        else:
+            config = VisionEncoderDecoderConfig.from_json_file(ENCODER_DECODER_CONFIG_PATH)
+            encoder_decoder = VisionEncoderDecoderModel(config)
         encoder_decoder = cast(VisionEncoderDecoderModel, encoder_decoder)
         self.encoder_decoder = encoder_decoder
         tokenizer = GPT2TokenizerFast.from_pretrained(
@@ -133,9 +148,12 @@ class MedicalReportGeneration(nn.Module):
         )
         tokenizer = cast(GPT2TokenizerFast, tokenizer)
         self.tokenizer = tokenizer
-        image_processor = ViTImageProcessor.from_pretrained(
-            VISION_ENCODER_DECODER_PATH, local_files_only=True
-        )
+        if finetune:
+            image_processor = ViTImageProcessor.from_pretrained(
+                VISION_ENCODER_DECODER_PATH, local_files_only=True
+            )
+        else:
+            image_processor = ViTImageProcessor.from_json_file(ENCODER_DECODER_CONFIG_PATH)
         image_processor = cast(ViTImageProcessor, image_processor)
         self.image_processor = image_processor
         self.device = device
