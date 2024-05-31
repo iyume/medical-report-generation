@@ -1,2 +1,13 @@
+[project]
+name = "medical-report-generation"
+version = "0.1.0"
+dependencies = [
+    "transformers~=4",
+    "torch~=2",
+    "torchvision",
+    "safetensors",
+    "pillow",
+]
+
 [tool.black]
 line-length = 100
