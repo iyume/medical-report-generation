@@ -1,9 +1,10 @@
 [project]
 name = "medical-report-generation"
 version = "0.1.0"
+requires-python = ">=3.10"
 dependencies = [
-    "transformers~=4",
-    "torch~=2",
+    "transformers~=4.0",
+    "torch~=2.0",
     "torchvision",
     "safetensors",
     "pillow",
@@ -11,3 +12,10 @@ dependencies = [
 
 [tool.black]
 line-length = 100
+
+[tool.setuptools]
+packages = ["medical_report_generation"]
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
