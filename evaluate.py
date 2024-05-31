@@ -6,7 +6,7 @@ from medical_report_generation.utils import State
 
 state: State = torch.load("ckpt/model_v1_epoch69.pth", map_location="cpu")
 
-model = MedicalReportGeneration(finetune=False, device="cpu")
+model = MedicalReportGeneration(finetune=False, device="cpu", local_files_only=True)
 model.load_state_dict(state["model_state_dict"])
 
 text = model.generate(Image.open("iu_xray/images/CXR3935_IM-2006/0.png"))
