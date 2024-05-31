@@ -131,32 +131,39 @@ class MedicalReportGenerationBert(nn.Module):
 
 
 class MedicalReportGeneration(nn.Module):
-    def __init__(self, *, finetune: bool = True, device: str = "cpu") -> None:
+
+    def __init__(
+        self, *, finetune: bool = True, device: str = "cpu", local_files_only: bool = False
+    ) -> None:
         super().__init__()
+        self.device = device
+
         if finetune:
             # load a fine-tuned image captioning model and corresponding tokenizer and image processor
             encoder_decoder = VisionEncoderDecoderModel.from_pretrained(
-                VISION_ENCODER_DECODER_PATH, local_files_only=True
+                VISION_ENCODER_DECODER_PATH, local_files_only=local_files_only
             )
         else:
             config = VisionEncoderDecoderConfig.from_json_file(ENCODER_DECODER_CONFIG_PATH)
             encoder_decoder = VisionEncoderDecoderModel(config)
         encoder_decoder = cast(VisionEncoderDecoderModel, encoder_decoder)
         self.encoder_decoder = encoder_decoder
+
         tokenizer = GPT2TokenizerFast.from_pretrained(
-            VISION_ENCODER_DECODER_PATH, local_files_only=True
+            VISION_ENCODER_DECODER_PATH, local_files_only=local_files_only
         )
         tokenizer = cast(GPT2TokenizerFast, tokenizer)
         self.tokenizer = tokenizer
+
         if finetune:
             image_processor = ViTImageProcessor.from_pretrained(
-                VISION_ENCODER_DECODER_PATH, local_files_only=True
+                VISION_ENCODER_DECODER_PATH, local_files_only=local_files_only
             )
         else:
             image_processor = ViTImageProcessor.from_json_file(ENCODER_DECODER_CONFIG_PATH)
         image_processor = cast(ViTImageProcessor, image_processor)
         self.image_processor = image_processor
-        self.device = device
+
         # GPT2 only has bos/eos tokens but not decoder_start/pad tokens
         tokenizer.pad_token = tokenizer.eos_token
         # update the model config

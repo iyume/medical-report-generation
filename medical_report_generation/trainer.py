@@ -23,12 +23,15 @@ class Trainer:
         finetune: bool = True,
         pth_file: str | None = None,
         dataset: IUXrayDataset | None = None,
+        local_files_only: bool = False,
     ) -> None:
         if finetune:
             learning_rate = 5e-5
         else:
             learning_rate = 1e-3
-        self.model = MedicalReportGeneration(finetune=finetune, device=device).train()
+        self.model = MedicalReportGeneration(
+            finetune=finetune, device=device, local_files_only=local_files_only
+        ).train()
         self.device = torch.device(device)
         self.model.to(self.device)
         if dataset is None:
