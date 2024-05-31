@@ -31,7 +31,7 @@ class Trainer:
         self.model = MedicalReportGeneration(finetune=finetune, device=device).train()
         self.device = torch.device(device)
         self.model.to(self.device)
-        if dataset is None: 
+        if dataset is None:
             dataset = IUXrayDataset()
         print(f"Loaded {len(dataset)} samples")
         self.dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
@@ -70,8 +70,9 @@ class Trainer:
         self.state["all_losses"].append(loss_avg)
         print(f"epoch {self.state['epoch']} training complete")
         print(f"STAT LOSS: {self.state['loss']:.4f}")
+        version = getattr(self.model, "version", "v1")
         if create_checkpoint:
-            checkpoint = ckpt_dir / f"model_{getattr(self.model, "version", "v1")}_epoch{self.state['epoch']}.pth"
+            checkpoint = ckpt_dir / f"model_{version}_epoch{self.state['epoch']}.pth"
             torch.save(self.state, checkpoint)
             print(f"model saved at {checkpoint}")
 
